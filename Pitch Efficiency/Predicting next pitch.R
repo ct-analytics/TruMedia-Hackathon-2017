@@ -2,8 +2,7 @@ library(dplyr)
 
 df <- d %>% 
   filter(pitchType!="UN",
-         pitchType!="PO",
-         pitcher=="Jon Lester") %>%
+         pitchType!="PO") %>%
   # filter(pitcher=="Jon Lester",
          # gameString=="gid_2016_10_25_chnmlb_clemlb_1") %>%
   select(pitcher,pitchID,pitchType,probCalledStrike,pitchResult,batterHand,umpireId,
@@ -23,10 +22,10 @@ df <- d %>%
   #             ) %>%
   filter(pitchID>1) %>%
          # !is.na(lastPitchTypeProbCalledStrike)) %>%
-  select(-pitchResult,-pitchID,-probCalledStrike,-pitcher,-gameString) 
+  select(-pitchResult,-pitchID,-probCalledStrike) 
 
 df$pitchType <- factor(df$pitchType)
-# df$pitcher <- factor(df$pitcher)
+df$pitcher <- factor(df$pitcher)
 df$lastPitchType <- factor(df$lastPitchType)
 df$lastPitchResult <- factor(df$lastPitchResult)
 df$batterHand <- factor(df$batterHand)
@@ -50,33 +49,45 @@ control <- trainControl(method="repeatedcv",
                         index=createResample(df.train$pitchType, 10),
                         classProbs=TRUE)
 
-rf <- train(pitchType~., data=df, method="rf", trControl=control)
-print(rf)
-plot(rf)
+library(doMC)
+registerDoMC(cores = 3)
+# model <- train(pitchType~., data=df.train, method="nnet", trControl=control)
+# model <- train(pitchType~., data=df.train, method="rf", trControl=control)
+# model <- train(pitchType~., data=df.train, method="nb", trControl=control)
+# model <- train(pitchType~., data=df.train, method="rpart", trControl=control)
+# model <- train(pitchType~., data=df.train, method="knn", trControl=control)
+# model <- train(pitchType~., data=df.train, method="ranger", trControl=control)
+# model <- train(pitchType~., data=df.train, method="gbm", trControl=control)
+# model <- train(pitchType~., data=df.train, method="dnn", trControl=control)
+model <- train(pitchType~., data=df.train, method="multinom", trControl=control)
+print(model)
 
-nnet <- train(pitchType~., data=df, method="nnet", trControl=control)
-print(nnet)
+confusionMatrix(model)
 
-rf.test <- predict(rf, newdata = df.test)
-confusionMatrix(rf)
+# nnet <- train(pitchType~., data=df, method="nnet", trControl=control)
+# print(nnet)
 
-confusionMatrix(rf.test)
+model.test <- predict(model, newdata = df.test,type="prob")
+model.test$pred <- predict(model, newdata = df.test)
+model.test$obs <- df.test$pitchType
+confusionMatrix(model.test$pred,model.test$obs)
 
 library(caretEnsemble)
 
 models <- caretList(pitchType~., 
                     data=df.train,
                     trControl=control,
-                    methodList=c("rf", "nnet", "svmRadial")
+                    methodList=c("rf", "nnet", "nb", "rpart", "knn", "ranger", "gbm", "dnn", "multinom")
                     )
 
 # Doesn't work for multi class problems :()
 modelEnsemble <- caretEnsemble(models)
+modelStack <- caretStack(models)
 
 results <- resamples(models)
 summary(results)
 modelCor(results)
 dotplot(results)
 splom(results)
-models.preds <- as.data.frame(predict(models, newdata = df.test))
+models.preds <- as.data.frame(predict(models, newdata = df.test, verbose = T))
 
