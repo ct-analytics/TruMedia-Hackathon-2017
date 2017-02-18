@@ -2,27 +2,22 @@ library(dplyr)
 
 df <- d %>% 
   filter(pitchType!="UN",
-         pitchType!="PO") %>%
-  # filter(pitcher=="Jon Lester",
-         # gameString=="gid_2016_10_25_chnmlb_clemlb_1") %>%
-  select(pitcher,pitchID,pitchType,probCalledStrike,pitchResult,batterHand,umpireId,
+         pitchType!="PO",
+         pitchType!="AB") %>%
+  dplyr::select(pitcher, pitchID, pitchType, probCalledStrike, pitchResult, batterHand, umpireId,
          balls, strikes, outs, manOnFirst, manOnSecond, manOnThird, inning, timesFaced) %>%
   mutate(lastPitchType=lag(pitchType),
          lastprobCallStrike=lag(probCalledStrike),
          lastPitchResult = lag(pitchResult),
-         lastBatterHand = lag(batterHand)) %>%
-  # left_join(d %>%
-  #             filter(pitchType!="UN",
-  #                    pitchType!="PO",
-  #                    pitcher=="Jon Lester") %>%
-  #             select(pitcher,gameString,pitchID,pitchType,probCalledStrike) %>%
-  #             arrange(pitcher,gameString,pitchID) %>%
-  #             group_by(pitcher,pitchType) %>%
-  #             mutate(lastPitchTypeProbCalledStrike = lag(probCalledStrike))
-  #             ) %>%
-  filter(pitchID>1) %>%
-         # !is.na(lastPitchTypeProbCalledStrike)) %>%
-  select(-pitchResult,-pitchID,-probCalledStrike) 
+         lastBatterHand = lag(batterHand)
+         ) %>%
+  filter(pitchID>1,
+         !is.na(umpireId),
+         !is.na(lastprobCallStrike)) %>%
+  dplyr::select(-pitchResult,-pitchID,-probCalledStrike) %>%
+  mutate_at(c("pitchType","pitcher","lastPitchType","lastPitchResult",
+              "batterHand","lastBatterHand","umpireId","manOnFirst",
+              "manOnSecond","manOnThird"),factor)
 
 df$pitchType <- factor(df$pitchType)
 df$pitcher <- factor(df$pitcher)
@@ -31,6 +26,9 @@ df$lastPitchResult <- factor(df$lastPitchResult)
 df$batterHand <- factor(df$batterHand)
 df$lastBatterHand <- factor(df$lastBatterHand)
 df$umpireId <- factor(df$umpireId)
+df$manOnFirst <- factor(df$manOnFirst)
+df$manOnSecond <- factor(df$manOnSecond)
+df$manOnThird <- factor(df$manOnThird)
 
 #todo: add feature on last pitch of that type  
 
