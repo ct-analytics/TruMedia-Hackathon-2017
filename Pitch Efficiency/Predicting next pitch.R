@@ -19,17 +19,6 @@ df <- d %>%
               "batterHand","lastBatterHand","umpireId","manOnFirst",
               "manOnSecond","manOnThird"),factor)
 
-df$pitchType <- factor(df$pitchType)
-df$pitcher <- factor(df$pitcher)
-df$lastPitchType <- factor(df$lastPitchType)
-df$lastPitchResult <- factor(df$lastPitchResult)
-df$batterHand <- factor(df$batterHand)
-df$lastBatterHand <- factor(df$lastBatterHand)
-df$umpireId <- factor(df$umpireId)
-df$manOnFirst <- factor(df$manOnFirst)
-df$manOnSecond <- factor(df$manOnSecond)
-df$manOnThird <- factor(df$manOnThird)
-
 #todo: add feature on last pitch of that type  
 
 library(caret)
