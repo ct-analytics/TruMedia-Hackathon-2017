@@ -13,6 +13,9 @@ This document represents the work of Christopher Teixeira for the 2017 TruMedia 
 For illustrative purposes, I wanted to understand this new field _probCalledStrike_ to see how well it might be used to determine a pitcher's best pitch. 
 
 ```{r readindata,echo=F,warning=F,cache=T}
+library(doMC)
+registerDoMC(cores = 3)
+
 library(readr)
 library(dplyr)
 library(lubridate)
@@ -65,7 +68,8 @@ library(dplyr)
 df <- d %>% 
   filter(pitchType!="UN",
          pitchType!="PO",
-         pitcher=="Jon Lester") %>%
+         pitcher=="Jon Lester"
+         ) %>%
   select(pitcher,pitchID,pitchType,probCalledStrike,pitchResult,batterHand,umpireId,
          balls, strikes, outs, manOnFirst, manOnSecond, manOnThird, inning, timesFaced) %>%
   mutate(lastPitchType=lag(pitchType),
@@ -124,13 +128,15 @@ control <- trainControl(method="repeatedcv",
 Now let's actually train the random forest and print out the model information. As you can see, this isn't exactly a great model. 
 
 ```{r randomforest, cache=T}
-rf <- train(pitchType~., data=df, method="rf", trControl=control)
-print(rf)
-confusionMatrix(rf)
+model <- train(pitchType~., data=df.train, method="multinom", trControl=control)
+print(model)
 
-rf.test <- predict(rf, newdata = df.test)
+confusionMatrix(model)
 
-confusionMatrix(rf.test)
+model.test <- predict(model, newdata = df.test,type="prob")
+model.test$pred <- predict(model, newdata = df.test)
+model.test$obs <- df.test$pitchType
+confusionMatrix(model.test$pred,model.test$obs)
 ```
 
 Well, let's try a different approach. By ensembling multiple models together, we can see if there's any value in taking the best from each model. 
