@@ -1,6 +1,6 @@
 ---
 title: "TruMedia Hackathon 2017"
-author: "Christopher Teixeira"
+author: "Christopher Teixeira, chris@feasibleanalytics.com"
 output: 
   html_document:
     theme: flatly
@@ -10,9 +10,13 @@ output:
 This document represents the work of Christopher Teixeira for the 2017 TruMedia Hackathon. 
 
 # Understanding pitches 
-For illustrative purposes, I wanted to understand this new field _probCalledStrike_ to see how well it might be used to determine a pitcher's best pitch. 
 
-```{r readindata,echo=F,warning=F,message=F}
+For illustrative purposes, I wanted to understand this new field _probCalledStrike_ to see how well it might be used to determine a pitcher's best pitch. I'm doing this work on a macbook air, with limited access to other more powerful resources. To that end, I'll read in three years worth of data and stick to analyzing Jon Lester's set of pitches in that time frame. The raw data had a lot of data, but I found two variables of interest that I wanted to add:
+
+1. battingTeam: the team facing the pitcher
+2. pitchID: an identifier that would allow me to order pitches in a game
+
+```{r readindata,warning=F,message=F}
 library(doMC)
 registerDoMC(cores = 3)
 
@@ -39,6 +43,8 @@ d <- d %>%
 
 ```
 
+# A pitcher's best pitch
+
 ```{r bestPitch,warning=F}
 bp <- d %>%
   filter(pitcher=="Jon Lester",
@@ -52,7 +58,6 @@ bp <- d %>%
 
 knitr::kable(bp)
 
-
 library(ggplot2)
 ggplot(data=d %>% filter(pitcher=="Jon Lester",pitchType!="PO",pitchType!="UN"),
        aes(x=pitchType,y=probCalledStrike)) +
@@ -60,11 +65,13 @@ ggplot(data=d %>% filter(pitcher=="Jon Lester",pitchType!="PO",pitchType!="UN"),
   geom_jitter(width = 0.2)
 ```
 
-We can see that for Jon Lester, he throws the cutter the most, and gets a higher average _probCalledStrike_. This matches up against [Brooks Baseball's Jon Lester card](http://www.brooksbaseball.net/landing.php?player=452657) which provides a nice validation for this metric.
+We can see that for Jon Lester, he throws the cutter the most, and gets a higher average _probCalledStrike_. This matches up against [Brooks Baseball's Jon Lester card](http://www.brooksbaseball.net/landing.php?player=452657) which provides a nice validation for this metric. However, the boxplot shows that the median is actually higher for the fourseam fastball. 
 
 My next question was, "could you use _probCalledStrike_ as a way to determine whether he will throw that type of pitch again?" This gets into a bit of a sophisticated solution. Using previous pitch information, we can try and see if it helps to determine whether he feels confident in throwing that pitch. 
 
-In starting to look at this, I'm taking a very few amount of features. Here's a quick description of the features.
+# Feature engineering
+
+In starting to look at this, I'm taking a very few amount of features. Here's a quick description of the features and their calculations.
 
 ```{r features}
 library(dplyr)
@@ -85,7 +92,8 @@ df <- d %>%
   dplyr::select(-pitchResult,-pitchID,-probCalledStrike) %>%
   mutate_at(c("pitchType","lastPitchType","lastPitchResult",
               "batterHand","lastBatterHand","manOnFirst",
-              "manOnSecond","manOnThird","seasonYear"),factor) 
+              "manOnSecond","manOnThird","seasonYear","balls",
+              "strikes","outs"),factor) 
 
 df$noise <- runif(nrow(df),0,1)
 
@@ -108,11 +116,13 @@ knitr::kable(data.frame(Features=names(df),
                                       "Random noise")))
 ```
 
-Now that we have a set of features to work with, let's get into modeling. For this exercise, I chose a random forest for its ability to predict multiple classes and speed in execution. I chose to use the [caret](http://topepo.github.io/caret/index.html) library for the ability to switch models later on just in case it is needed. 
+# Building a model
 
-First up, let's split the data into train and test data sets. This will allow us better control to measure the performance of the model. I'll also take the time to create the train control that will be used in the train function. 
+Now that we have a set of features to work with, let's get into modeling. For this exercise, I chose a multinomial logistic regression model. I chose to use the [caret](http://topepo.github.io/caret/index.html) library for the ability to switch models later on just in case it is needed. 
 
-```{r datasplit}
+First up, let's split the data into train and test data sets. This will allow us better control to assess the performance of the model. I'll also take the time to create the train control that will be used in the train function. 
+
+```{r datasplit, message=F}
 
 library(caret)
 
@@ -131,23 +141,40 @@ control <- trainControl(method="repeatedcv",
 
 ```
 
-Now let's actually train the random forest and print out the model information. As you can see, this isn't exactly a great model. 
+Now let's actually train the model and print out the some information on its performance. As you can see in the results below, this isn't exactly a great model. The first print function gives information on the model. It describes the classes we're predicting and the accuracy for different tuning attempts. 
 
-```{r randomforest}
-model <- train(pitchType~., data=df.train, method="multinom", trControl=control)
+We then print out the coefficients to see how they might be different across the pitch types and the various inputs to describe the pitching situation. In theory, these estimates would indicate whether each variable has a positive or negative influence on the type of pitch to be thrown.
+
+The confusion matrix gives us an idea on where the predictions might be failing. In other algorithms, the confusion matrix shows that those algorithms only choose the fourseam fastball while maintaining similar accuracy. In this particular effort, we can see how one pitch might be mistaken for another. 
+
+Finally, let's print out the variable importance to see exactly where _probCalledStrike_ fell in the list of variables. I include a noise variable in order to measure which variables are better than random noise. As it turns out most variables are, but the _probCalledStrike_ strike for the previous pitch didn't have a large impact on the final result.
+
+```{r model}
+model <- train(pitchType~., data=df.train, method="multinom", trControl=control, verbose=F)
 print(model)
-
+summary(model)
 confusionMatrix(model)
 
+varImp(model)
+plot(varImp(model))
+```
+
+Given the original model wasn't great, I was hesitant to take this further. However, let's use the test dataset to see how well this model performed. The confusion matrix indicates a similar performance to the model, which is somewhat good and somewhat bad. The model performs poorly, but consistently poorly. 
+
+```{r modeltest}
 model.test <- predict(model, newdata = df.test,type="prob")
 model.test$pred <- predict(model, newdata = df.test)
 model.test$obs <- df.test$pitchType
 confusionMatrix(model.test$pred,model.test$obs)
 ```
 
-Well, let's try a different approach. By ensembling multiple models together, we can see if there's any value in taking the best from each model. 
+# Building a better model
 
-```{r ensemble}
+My next thought was, why not try other algorithms. We can use the [caretEnsemble package](https://cran.r-project.org/web/packages/caretEnsemble/) to run several models at once. It doesn't support multiclass predictions but we can at least get the results out in a minimal amount of coding. 
+
+The correlation and dotplot give us information about how each model performed. In general, it wasn't much better than our original model but perhaps we can find away to ensemble them together as future work.
+
+```{r ensemble, message=F}
 library(caretEnsemble)
 
 models <- caretList(pitchType~., 
@@ -161,7 +188,6 @@ results <- resamples(models)
 summary(results)
 modelCor(results)
 dotplot(results)
-splom(results)
 ```
 
 # Next Steps
@@ -171,4 +197,5 @@ Well as you can tell, this didn't turn out too great. I'd like to create a custo
 * Batter Performance against every pitch type
 * Ballpark factors on pitches
 * Influences by an umpire
-* 
+
+Please reach out to [chris@feasibleanalytics.com](mailto:chris@feasibleanalytics.com) or [@ct_analytics on twitter](https://twitter.com/CT_Analytics) if you have any questions about this analysis.
