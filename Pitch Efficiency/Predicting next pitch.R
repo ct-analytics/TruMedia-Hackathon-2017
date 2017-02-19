@@ -17,7 +17,10 @@ df <- d %>%
   dplyr::select(-pitchResult,-pitchID,-probCalledStrike) %>%
   mutate_at(c("pitchType","lastPitchType","lastPitchResult",
               "batterHand","lastBatterHand","umpireId","manOnFirst",
-              "manOnSecond","manOnThird","seasonYear"),factor)
+              "manOnSecond","manOnThird","seasonYear"),factor) 
+
+df$noise <- runif(nrow(df),0,1)
+  
 
 #todo: add feature on last pitch of that type  
 
