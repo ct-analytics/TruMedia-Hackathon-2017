@@ -12,14 +12,16 @@ This document represents the work of Christopher Teixeira for the 2017 TruMedia 
 # Understanding pitches 
 For illustrative purposes, I wanted to understand this new field _probCalledStrike_ to see how well it might be used to determine a pitcher's best pitch. 
 
-```{r readindata,echo=F,warning=F,cache=T}
+```{r readindata,echo=F,warning=F,message=F}
 library(doMC)
 registerDoMC(cores = 3)
 
 library(readr)
 library(dplyr)
 library(lubridate)
-d <- read_csv("../../2016.csv")
+d <- rbind(read_csv("../../2016.csv") %>% filter(pitcher=="Jon Lester"),
+           read_csv("../../2015.csv") %>% filter(pitcher=="Jon Lester"),
+           read_csv("../../2014.csv") %>% filter(pitcher=="Jon Lester"))
 
 # Get a glimpse of the data
 glimpse(d)
@@ -34,9 +36,10 @@ d <- d %>%
   group_by(gameString,pitcherId) %>%
   mutate(pitchID = row_number()) %>%
   ungroup()
+
 ```
 
-```{r bestPitch, cache=T}
+```{r bestPitch,warning=F}
 bp <- d %>%
   filter(pitcher=="Jon Lester",
          pitchType!="PO",
@@ -48,6 +51,7 @@ bp <- d %>%
   arrange(desc(probCalledStrikeMean))
 
 knitr::kable(bp)
+
 
 library(ggplot2)
 ggplot(data=d %>% filter(pitcher=="Jon Lester",pitchType!="PO",pitchType!="UN"),
@@ -62,34 +66,33 @@ My next question was, "could you use _probCalledStrike_ as a way to determine wh
 
 In starting to look at this, I'm taking a very few amount of features. Here's a quick description of the features.
 
-```{r features, cache=T}
+```{r features}
 library(dplyr)
 
 df <- d %>% 
   filter(pitchType!="UN",
          pitchType!="PO",
-         pitcher=="Jon Lester"
-         ) %>%
-  select(pitcher,pitchID,pitchType,probCalledStrike,pitchResult,batterHand,umpireId,
+         pitchType!="AB") %>%
+  dplyr::select(seasonYear,pitchID, pitchType, probCalledStrike, pitchResult, batterHand,
          balls, strikes, outs, manOnFirst, manOnSecond, manOnThird, inning, timesFaced) %>%
   mutate(lastPitchType=lag(pitchType),
          lastprobCallStrike=lag(probCalledStrike),
          lastPitchResult = lag(pitchResult),
-         lastBatterHand = lag(batterHand)) %>%
-  filter(pitchID>1) %>%
-  select(-pitchResult,-pitchID,-probCalledStrike,-pitcher) 
+         lastBatterHand = lag(batterHand)
+         ) %>%
+  filter(pitchID>1,
+         !is.na(lastprobCallStrike)) %>%
+  dplyr::select(-pitchResult,-pitchID,-probCalledStrike) %>%
+  mutate_at(c("pitchType","lastPitchType","lastPitchResult",
+              "batterHand","lastBatterHand","manOnFirst",
+              "manOnSecond","manOnThird","seasonYear"),factor) 
 
-df$pitchType <- factor(df$pitchType)
-df$lastPitchType <- factor(df$lastPitchType)
-df$lastPitchResult <- factor(df$lastPitchResult)
-df$batterHand <- factor(df$batterHand)
-df$lastBatterHand <- factor(df$lastBatterHand)
-df$umpireId <- factor(df$umpireId)
+df$noise <- runif(nrow(df),0,1)
 
 knitr::kable(data.frame(Features=names(df),
-                        Description=c("The pitch type being predicted",
+                        Description=c("Year the pitch took place",
+                                      "The pitch type being predicted",
                                       "The batter's hand",
-                                      "The umpire making the call",
                                       "The number of balls for the at bat before the pitch",
                                       "The number of strikes for the at bat before the pitch",
                                       "The number of outs before the pitch",
@@ -99,16 +102,18 @@ knitr::kable(data.frame(Features=names(df),
                                       "Inning",
                                       "Number of times batter faced this pitcher within this game",
                                       "The last pitch type thrown",
-                                      "The last pitch probability of called strike",
+                                      "The last pitch's probability of called strike",
                                       "The last pitch result",
-                                      "The batter's hand against the last pitch")))
+                                      "The batter's hand against the last pitch",
+                                      "Random noise")))
 ```
 
 Now that we have a set of features to work with, let's get into modeling. For this exercise, I chose a random forest for its ability to predict multiple classes and speed in execution. I chose to use the [caret](http://topepo.github.io/caret/index.html) library for the ability to switch models later on just in case it is needed. 
 
 First up, let's split the data into train and test data sets. This will allow us better control to measure the performance of the model. I'll also take the time to create the train control that will be used in the train function. 
 
-```{r datasplit, cache=T}
+```{r datasplit}
+
 library(caret)
 
 split.data <- createDataPartition(y=df$pitchType, 
@@ -123,11 +128,12 @@ control <- trainControl(method="repeatedcv",
                         savePredictions="final",
                         index=createResample(df.train$pitchType, 10),
                         classProbs=TRUE)
+
 ```
 
 Now let's actually train the random forest and print out the model information. As you can see, this isn't exactly a great model. 
 
-```{r randomforest, cache=T}
+```{r randomforest}
 model <- train(pitchType~., data=df.train, method="multinom", trControl=control)
 print(model)
 
@@ -141,13 +147,13 @@ confusionMatrix(model.test$pred,model.test$obs)
 
 Well, let's try a different approach. By ensembling multiple models together, we can see if there's any value in taking the best from each model. 
 
-```{r ensemble, cache=T}
+```{r ensemble}
 library(caretEnsemble)
 
 models <- caretList(pitchType~., 
                     data=df.train,
                     trControl=control,
-                    methodList=c("rf", "nnet", "svmRadial")
+                    methodList=c("rf", "nnet", "multinom")
                     )
 
 results <- resamples(models)
@@ -157,3 +163,12 @@ modelCor(results)
 dotplot(results)
 splom(results)
 ```
+
+# Next Steps
+
+Well as you can tell, this didn't turn out too great. I'd like to create a custom ensemble model just to see how much it might improve on the individual models. In addition, there are additional features that I would like to create:
+
+* Batter Performance against every pitch type
+* Ballpark factors on pitches
+* Influences by an umpire
+* 
