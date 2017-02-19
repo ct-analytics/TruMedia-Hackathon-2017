@@ -1,7 +1,9 @@
 library(readr)
 library(dplyr)
 library(lubridate)
-d <- read_csv("../../2016.csv")
+d <- rbind(read_csv("../../2016.csv") %>% filter(pitcher=="Jon Lester"),
+           read_csv("../../2015.csv") %>% filter(pitcher=="Jon Lester"),
+           read_csv("../../2014.csv") %>% filter(pitcher=="Jon Lester"))
 
 # Get a glimpse of the data
 glimpse(d)

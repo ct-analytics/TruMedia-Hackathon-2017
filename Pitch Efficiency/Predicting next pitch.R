@@ -4,7 +4,7 @@ df <- d %>%
   filter(pitchType!="UN",
          pitchType!="PO",
          pitchType!="AB") %>%
-  dplyr::select(pitcher, pitchID, pitchType, probCalledStrike, pitchResult, batterHand, umpireId,
+  dplyr::select(seasonYear,pitchID, pitchType, probCalledStrike, pitchResult, batterHand, umpireId,
          balls, strikes, outs, manOnFirst, manOnSecond, manOnThird, inning, timesFaced) %>%
   mutate(lastPitchType=lag(pitchType),
          lastprobCallStrike=lag(probCalledStrike),
@@ -15,9 +15,9 @@ df <- d %>%
          !is.na(umpireId),
          !is.na(lastprobCallStrike)) %>%
   dplyr::select(-pitchResult,-pitchID,-probCalledStrike) %>%
-  mutate_at(c("pitchType","pitcher","lastPitchType","lastPitchResult",
+  mutate_at(c("pitchType","lastPitchType","lastPitchResult",
               "batterHand","lastBatterHand","umpireId","manOnFirst",
-              "manOnSecond","manOnThird"),factor)
+              "manOnSecond","manOnThird","seasonYear"),factor)
 
 #todo: add feature on last pitch of that type  
 
