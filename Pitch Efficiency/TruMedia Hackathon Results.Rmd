@@ -1,5 +1,5 @@
 ---
-title: "TruMedia Hackathon 2017"
+title: "TruMedia Hackathon 2017: Predicting Pitch Types"
 author: "Christopher Teixeira, chris@feasibleanalytics.com"
 output: 
   html_document:
@@ -198,4 +198,4 @@ Well as you can tell, this didn't turn out too great. I'd like to create a custo
 * Ballpark factors on pitches
 * Influences by an umpire
 
-Please reach out to [chris@feasibleanalytics.com](mailto:chris@feasibleanalytics.com) or [@ct_analytics on twitter](https://twitter.com/CT_Analytics) if you have any questions about this analysis.
+Please reach out to [chris@feasibleanalytics.com](mailto:chris@feasibleanalytics.com) or @ct_analytics on twitter if you have any questions about this analysis.
