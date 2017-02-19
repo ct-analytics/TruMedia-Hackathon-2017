@@ -4,7 +4,7 @@ df <- d %>%
   filter(pitchType!="UN",
          pitchType!="PO",
          pitchType!="AB") %>%
-  dplyr::select(seasonYear,pitchID, pitchType, probCalledStrike, pitchResult, batterHand, umpireId,
+  dplyr::select(seasonYear,pitchID, pitchType, probCalledStrike, pitchResult, batterHand,
          balls, strikes, outs, manOnFirst, manOnSecond, manOnThird, inning, timesFaced) %>%
   mutate(lastPitchType=lag(pitchType),
          lastprobCallStrike=lag(probCalledStrike),
@@ -12,11 +12,10 @@ df <- d %>%
          lastBatterHand = lag(batterHand)
          ) %>%
   filter(pitchID>1,
-         !is.na(umpireId),
          !is.na(lastprobCallStrike)) %>%
   dplyr::select(-pitchResult,-pitchID,-probCalledStrike) %>%
   mutate_at(c("pitchType","lastPitchType","lastPitchResult",
-              "batterHand","lastBatterHand","umpireId","manOnFirst",
+              "batterHand","lastBatterHand","manOnFirst",
               "manOnSecond","manOnThird","seasonYear"),factor) 
 
 df$noise <- runif(nrow(df),0,1)
@@ -53,7 +52,8 @@ model <- train(pitchType~., data=df.train, method="multinom", trControl=control)
 print(model)
 
 confusionMatrix(model)
-
+varImp(model)
+plot(varImp(model))
 # nnet <- train(pitchType~., data=df, method="nnet", trControl=control)
 # print(nnet)
 
